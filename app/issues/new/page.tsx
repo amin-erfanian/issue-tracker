@@ -6,40 +6,81 @@ import "easymde/dist/easymde.min.css";
 import { useForm, Controller } from "react-hook-form";
 import axios from "axios";
 
-interface issueForm {
-  title: string;
-  description: string;
-}
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createIssueSchema } from "@/schema/issueSchema";
+
+import { z } from "zod";
+import Spinner from "@/app/components/Spinner";
+import ErrorMessage from "@/app/components/ErrorMessage";
+
+type issueForm = z.infer<typeof createIssueSchema>;
 
 export default function Home() {
-  const { handleSubmit, register, control } = useForm<issueForm>();
+  const {
+    handleSubmit,
+    register,
+    control,
+    formState: { errors },
+  } = useForm<issueForm>({
+    resolver: zodResolver(createIssueSchema),
+  });
+
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const onSubmit = handleSubmit(async (data) => {
+    try {
+      setIsSubmitting(true);
+      await axios.post("/api/issues", data);
+      router.push("/issues");
+    } catch (error) {
+      setError("An error has occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  });
 
   return (
-    <form
-      onSubmit={handleSubmit(async (data) => {
-        const response = await axios.post("/api/issues", data);
-        console.log(response);
-      })}
-      className="max-w-xl p-5 space-y-4"
-    >
-      <input
-        {...register("title")}
-        className="border border-gray-300 rounded-md py-1 px-4 w-full"
-        placeholder="Title"
-        type="text"
-      />
+    <div className="max-w-xl">
+      {error && (
+        <p className="rounded-md text-red-500 bg-red-100 mb-4 py-2 px-4 text-sm">
+          {error}
+        </p>
+      )}
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <div>
+          <input
+            {...register("title")}
+            className="border border-gray-300 rounded-md py-1 px-4 w-full"
+            placeholder="Title"
+            type="text"
+          />
+          <ErrorMessage>{errors.title?.message}</ErrorMessage>
+        </div>
 
-      <Controller
-        name="description"
-        control={control}
-        render={({ field }) => (
-          <SimpleMDE placeholder="Description" {...field} />
-        )}
-      />
+        <div>
+          <Controller
+            name="description"
+            control={control}
+            render={({ field }) => (
+              <SimpleMDE placeholder="Description" {...field} />
+            )}
+          />
+          <ErrorMessage>{errors.description?.message}</ErrorMessage>
+        </div>
 
-      <button className="bg-violet-500 px-8 py-2 rounded-md text-white">
-        Submit
-      </button>
-    </form>
+        <button
+          disabled={isSubmitting}
+          className=" flex items-center bg-violet-500 px-8 py-2 rounded-md text-white space-x-4"
+        >
+          <p> Submit </p>
+          {isSubmitting && <Spinner />}
+        </button>
+      </form>
+    </div>
   );
 }
